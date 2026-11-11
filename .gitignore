@@ -1,0 +1,15 @@
+# Secrets and local settings
+.env
+
+# Data: the loader downloads it, never commit it (GitHub refuses files over 100 MB)
+data/
+*.parquet
+*.csv
+*.zip
+*.part
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16
+    env_file: .env                      # POSTGRES_DB / USER / PASSWORD create the database on first start
+    ports:
+      # 5433 on your laptop, so it does not clash with a Postgres already running on 5432.
+      # Inside Compose, services still reach it as db:5432.
+      - "${DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data  # keeps the data when the containers stop
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  loader:
+    build:
+      context: .
+      dockerfile: loader/Dockerfile
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db                 # the service name, never localhost (overrides .env)
+      DATA_DIR: /data
+    volumes:
+      - ./data:/data                    # downloaded files stay on your laptop, not re-downloaded each run
+    depends_on:
+      db:
+        condition: service_healthy      # wait until PostgreSQL accepts connections
+
+  # app:  (Streamlit dashboard, to be added)
+  #   build: ./app
+  #   env_file: .env
+  #   environment:
+  #     POSTGRES_HOST: db
+  #   ports:
+  #     - "8501:8501"
+  #   depends_on:
+  #     loader:
+  #       condition: service_completed_successfully
+
+volumes:
+  dbdata:
