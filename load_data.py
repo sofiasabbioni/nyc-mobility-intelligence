@@ -2,20 +2,24 @@
 
 First calls download_data.py, so the files are always there.
 
-The months are loaded one at a time, to keep memory low. A month that is
-already in the database is skipped, so restarting does not reload everything.
+The months are loaded one at a time. Each month is read from the Parquet file in
+chunks (iter_batches) and sent to PostgreSQL with COPY, so memory stays low and
+loading is fast. A month that is already in the database is skipped, so restarting
+does not reload everything.
 """
+import io
 import os
 import time
 
 import pandas as pd
 import psycopg
+import pyarrow.parquet as pq
 
 import download_data
 
 DATA_DIR = download_data.DATA_DIR
 MONTHS = download_data.MONTHS
-CHUNK = 100_000   # rows sent to the database at a time, so memory stays low (100MB vs 3.8GB)
+CHUNK = 100_000   # rows read from the file and sent to the database at a time
 
 # The 20 columns of the TLC yellow-taxi files, in lowercase to avoid conflict with PostgreSQL.
 # PostgreSQL turns names into lowercase anyway (PULocationID -> pulocationid),
@@ -27,12 +31,19 @@ TRIP_COLUMNS = [
     "total_amount", "congestion_surcharge", "airport_fee", "cbd_congestion_fee",
 ]
 
+# Columns that TLC stores as decimals (1.0) but our table has as INTEGER.
+# COPY rejects "1.0" for an INTEGER column, so we convert them first.
+INT_COLUMNS = [
+    "vendorid", "passenger_count", "ratecodeid",
+    "pulocationid", "dolocationid", "payment_type",
+]
+
 
 def main():
     download_data.main()
 
     conn = psycopg.connect(
-        host=os.environ.get("POSTGRES_HOST", "db"),   # ?the service name in docker-compose.yml
+        host=os.environ.get("POSTGRES_HOST", "db"),   # the service name in docker-compose.yml
         port=5432,
         dbname=os.environ["POSTGRES_DB"],
         user=os.environ["POSTGRES_USER"],
@@ -77,7 +88,7 @@ def main():
         )
     ''')
 
-    # 2. Which months are already in the database? (82-100 prevents duplicates)
+    # 2. Which months are already in the database? (prevents duplicates)
     cursor.execute("SELECT month FROM loaded_months")
     already = []
     for row in cursor.fetchall():
@@ -120,42 +131,46 @@ def main():
     conn.commit()
     print(f"{len(zones)} taxi zones inserted.")
 
-    # 4. Trips: one month at a time
-    insert_sql = '''
-        INSERT INTO taxi_trips (
-            vendorid, tpep_pickup_datetime, tpep_dropoff_datetime,
-            passenger_count, trip_distance, ratecodeid, store_and_fwd_flag,
-            pulocationid, dolocationid, payment_type, fare_amount, extra,
-            mta_tax, tip_amount, tolls_amount, improvement_surcharge,
-            total_amount, congestion_surcharge, airport_fee, cbd_congestion_fee
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                  %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    '''
+    # 4. Trips: one month at a time, read AND written in chunks.
+    # iter_batches reads only CHUNK rows from the Parquet file at a time, so memory stays low.
+    # COPY sends each chunk as one CSV stream, much faster than one INSERT per row.
+    copy_sql = f"COPY taxi_trips ({', '.join(TRIP_COLUMNS)}) FROM STDIN WITH (FORMAT csv)"
 
     for month in MONTHS:
         if month in already:
             print(f"{month}: already loaded, skipped")
             continue
 
-        trips = pd.read_parquet(os.path.join(DATA_DIR, download_data.trips_file(month)))
-        print(f"\n{month}: {len(trips):,} rows, {len(trips.columns)} columns")
-
-        # Lowercase names, then put the columns in the same order as the table.
-        # If the TLC ever renames a column, this line stops with a KeyError naming the missing column.
-        trips.columns = [c.lower() for c in trips.columns]
-        trips = trips[TRIP_COLUMNS]
+        parquet_file = pq.ParquetFile(os.path.join(DATA_DIR, download_data.trips_file(month)))
+        total = parquet_file.metadata.num_rows      # row count, without reading the data
+        print(f"\n{month}: {total:,} rows")
 
         t = time.perf_counter()
-        for start in range(0, len(trips), CHUNK):
-            chunk = trips.iloc[start:start + CHUNK]
-            chunk = chunk.astype(object).where(chunk.notna(), None)   # NaN -> NULL, as above
-            cursor.executemany(insert_sql, chunk.values.tolist())
-            print(f"  {min(start + CHUNK, len(trips)):,} / {len(trips):,} rows inserted")
+        done = 0
+        with cursor.copy(copy_sql) as copy:
+            for batch in parquet_file.iter_batches(batch_size=CHUNK):
+                chunk = batch.to_pandas()
+
+                # Lowercase names, then the same column order as the table.
+                # If the TLC ever renames a column, this stops with a KeyError naming it.
+                chunk.columns = [c.lower() for c in chunk.columns]
+                chunk = chunk[TRIP_COLUMNS]
+
+                # 1.0 -> 1 (Int64 with a capital I keeps empty cells empty)
+                chunk[INT_COLUMNS] = chunk[INT_COLUMNS].astype("Int64")
+
+                # Write the chunk as CSV text and send it. Empty cell = NULL for COPY.
+                buf = io.StringIO()
+                chunk.to_csv(buf, header=False, index=False)
+                copy.write(buf.getvalue())
+
+                done += len(chunk)
+                print(f"  {done:,} / {total:,} rows copied", flush=True)
         seconds = round(time.perf_counter() - t, 2)
 
         cursor.execute(
             "INSERT INTO loaded_months (month, rows_loaded, seconds) VALUES (%s, %s, %s)",
-            (month, len(trips), seconds),
+            (month, total, seconds),
         )
         # Commit after each month: if the script crashes during a month,
         # only that month is thrown away and the finished ones are kept.
