@@ -1,16 +1,3 @@
-"""Run the whole data pipeline in order and time every step.
-
-This is what the `loader` container runs. Steps:
-    1. load_data.py           download the TLC files and load them, raw, into PostgreSQL (taxi_trips)
-    2. preprocessing_data_postgress.py  copy the 6 columns / hour window into taxi_trips_night
-    3. cleaning_data_postgress.py    clean it in Python -> taxi_trips_night_clean (rejects logged per reason)
-
-If a step fails, the pipeline stops there and the container exits with an error.
-The timing summary at the end is the "full run" measurement for the README.
-
-Usage (inside the container, or on your laptop with the POSTGRES_* variables set):
-    python run_pipeline.py
-"""
 import subprocess
 import sys
 import time
@@ -19,6 +6,7 @@ STEPS = [
     ("Download + load raw data", "load_data.py"),
     ("Create filtered night table", "preprocessing_data_postgress.py"),
     ("Clean the night data", "cleaning_data_postgress.py"),
+    ("Nightlife metrics per zone", "analysis_data_postgres.py"),
 ]
 
 
