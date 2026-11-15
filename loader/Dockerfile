@@ -8,6 +8,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY download_data.py load_data.py preprocessing_data_postgress.py cleaning_data_postgress.py run_pipeline.py ./
+COPY download_data.py load_data.py preprocessing_data_postgress.py cleaning_data_postgress.py analysis_data_postgres.py run_pipeline.py ./
 
 CMD ["python", "run_pipeline.py"]
