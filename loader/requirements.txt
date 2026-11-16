@@ -1,0 +1,4 @@
+pyarrow==26.0.1
+numpy==2.5.4
+psycopg[binary]==3.3.8
+duckdb==2.0.0
