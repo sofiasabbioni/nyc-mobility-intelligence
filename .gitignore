@@ -1,0 +1,11 @@
+data/raw/*
+!data/raw/.gitkeep
+data/full/*
+!data/full/.gitkeep
+results/*
+!results/.gitkeep
+.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
