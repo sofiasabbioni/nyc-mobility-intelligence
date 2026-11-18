@@ -14,7 +14,7 @@ foreach ($name in @("docker-compose.yml", ".env.example", "requirements-dev.txt"
     if (Test-Path $name) {
         Write-Host "OK: $name"
     } else {
-        Write-Host "MISSING: $name" - ForegroundColor Yellow
+        Write-Host "MISSING: $name" -ForegroundColor Yellow
     }
 }
 
@@ -24,7 +24,7 @@ if (Get-Command docker -ErrorAction Silentlycontinue) {
     Write-Host "`nChecking Compose syntax (without starting containers):"
     docker compose config --quiet
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "ERROR: Compose validation failed" - ForegroundColor Red
+        Write-Host "ERROR: Compose validation failed" -ForegroundColor Red
     }
 }
 
