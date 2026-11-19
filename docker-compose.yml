@@ -71,8 +71,10 @@ services:
       RESULTS_DIR: /results
       NIGHT_START: ${NIGHT_START:-18}
       NIGHT_END: ${NIGHT_END:-6}
+      DATA_DIR: /data/raw
     volumes:
       - ./results:/results:ro
+      - ./data/raw:/data/raw:ro
     ports:
       - "8501:8501"
     depends_on:
