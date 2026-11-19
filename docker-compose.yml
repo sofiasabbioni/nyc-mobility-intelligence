@@ -39,7 +39,9 @@ services:
     build:
       context: .
       dockerfile: loader/Dockerfile
-    environment: *env
+    environment:
+      <<: *env
+      WITH_ZONE_SHAPES: "1"
     volumes:
       - taxi_data:/data                 # clean files and DuckDB databases (fast Docker volume)
       - ./data/raw:/data/raw            # ORIGINAL files: put yours here, they are used as they are
