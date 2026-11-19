@@ -12,7 +12,8 @@ called from `app/dashboard.py` with `render_nightlife_map(RESULTS)`.
     below 1 they arrive and stay (residential zone). Diverging colour scale centred on 1.
   - **Late departures per night**, **evening arrivals per night**, **late arrivals per night**.
 - Filters: night type (weekend / weekday / all), colour measure, boroughs.
-- A **top-10 table** for the selected measure.
+- A **top-10 table** for the selected measure. When ranking by the score, the table also shows late departures
+  and late arrivals per night, so a high ratio built on few trips is visible.
 - An **hour-by-hour chart** (18:00 ... 05:00) of pickups and drop-offs per night for up to three zones.
 - Tooltips with zone name, borough and the three per-night activity values.
 
