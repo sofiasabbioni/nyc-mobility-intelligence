@@ -12,6 +12,7 @@ import streamlit as st
 
 import theme
 from results_io import (ratio_sentences, read_csv_safe, read_json_safe, size_labels, timings_status)
+from nightlife_map import render_nightlife_map
 
 RESULTS = Path(os.environ.get("RESULTS_DIR", "/results"))
 NIGHT_START = int(os.environ.get("NIGHT_START", "18"))
@@ -106,6 +107,10 @@ with tab_city:
                 y=alt.Y("borough:N", sort="-x", title=None, axis=theme.label_axis()),
                 x=alt.X("trips:Q", title="Trips"),
                 tooltip=["borough", "trips"]), width="stretch", theme=None)
+
+with tab_city:
+    st.divider()
+    render_nightlife_map(RESULTS)
 
 # ------------------------------------------------------------ data quality
 with tab_data:
