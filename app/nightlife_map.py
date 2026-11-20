@@ -127,9 +127,13 @@ def render_nightlife_map(results_dir):
         return
 
     st.metric("Nights covered", int(data["nights"].max()))
-    st.caption("Airports and unknown zones are never ranked. For the score, zones with fewer than 100 late "
-               "pickups or drop-offs are also left out: they are not drawn on the map and are not in the table.")
-
+    st.caption(
+    "Airports and unknown zones are excluded. For the nightlife score, "
+    "zones need at least 100 combined late pickups and drop-offs "
+    "(the default minimum), including at least one late drop-off. "
+    "Zones that do not meet this threshold are omitted from the "
+    "score map and ranking.")   
+    
     shapes_path = Path(os.getenv("DATA_DIR", "data/raw")) / "taxi_zones.zip"
     if shapes_path.exists():
         try:
