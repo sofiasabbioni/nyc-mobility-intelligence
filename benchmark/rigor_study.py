@@ -333,7 +333,7 @@ def connect_postgres(months: int, variant: dict) -> Executor:
         conn.close()
         raise
 
-    return ex
+    return ex 
 
 
 def prepare_postgres(ex: Executor, months: int, variant: dict) -> None:
