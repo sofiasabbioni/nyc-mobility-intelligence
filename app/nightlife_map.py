@@ -46,6 +46,20 @@ def filter_map_rows(data: pd.DataFrame, metric: str) -> pd.DataFrame:
     return result[result[metric].notna()]
 
 
+VOLUME_COLUMNS = {"avg_late_departures": "Late departures / night", "avg_late_arrivals": "Late arrivals / night"}
+
+
+def top_zones(data: pd.DataFrame, metric: str, n: int = 10) -> pd.DataFrame:
+    """Top-n table for the selected measure. Ranking by the score also shows the volumes behind the
+    ratio, so a high score built on few trips is visible. The ordering is the same as before."""
+    cols = ["zone", "borough", metric]
+    if metric == "nightlife_score":
+        cols += list(VOLUME_COLUMNS)
+    table = data.nlargest(n, metric)[cols].round(2)
+    return table.rename(columns={"nightlife_score": "Nightlife score (L / H)",
+                                 "avg_evening_arrivals": "Evening arrivals / night", **VOLUME_COLUMNS})
+
+
 @st.cache_data(ttl=60)
 def read_results(metrics_file: str, hourly_file: str):
     metrics = pd.read_csv(metrics_file)
@@ -92,8 +106,9 @@ def render_nightlife_map(results_dir):
 
     st.subheader("NYC After Dark: nightlife geography")
     st.caption(
-        "Yellow-taxi mobility proxy, not a direct measure of nightlife. "
-        "Night: 18:00-05:59; late: 00:00-04:59."
+        "Nightlife score = late departures / late arrivals, i.e. yellow-taxi pickups / drop-offs in the zone "
+        "between 00:00 and 04:59. It measures an asymmetry in taxi activity: a proxy, not a direct measure of "
+        "nightlife or of what a place is (commuting and airports also move it). Night: 18:00-05:59."
     )
     c1, c2 = st.columns(2)
     night = c1.selectbox("Night type", ["weekend", "weekday", "all"])
@@ -112,8 +127,13 @@ def render_nightlife_map(results_dir):
         return
 
     st.metric("Nights covered", int(data["nights"].max()))
-    st.caption("For ratio rankings, low-volume zones and airports are excluded.")
-
+    st.caption(
+    "Airports and unknown zones are excluded. For the nightlife score, "
+    "zones need at least 100 combined late pickups and drop-offs "
+    "(the default minimum), including at least one late drop-off. "
+    "Zones that do not meet this threshold are omitted from the "
+    "score map and ranking.")   
+    
     shapes_path = Path(os.getenv("DATA_DIR", "data/raw")) / "taxi_zones.zip"
     if shapes_path.exists():
         try:
@@ -157,12 +177,7 @@ def render_nightlife_map(results_dir):
         st.info(f"Missing zone geometry: {shapes_path}")
 
     st.markdown("**Top 10 zones for the selected measure**")
-    st.dataframe(
-        data.nlargest(10, metric)[
-            ["zone", "borough", metric]
-        ].round(2),
-        hide_index=True, width="stretch",
-    )
+    st.dataframe(top_zones(data, metric), hide_index=True, width="stretch")
 
     st.markdown("**Pickup and drop-off patterns by hour**")
     names = data.set_index("zone_id")["zone"]

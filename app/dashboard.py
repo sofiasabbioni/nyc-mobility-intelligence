@@ -11,7 +11,8 @@ import pandas as pd
 import streamlit as st
 
 import theme
-from results_io import (ratio_sentences, read_csv_safe, read_json_safe, size_labels, timings_status)
+from results_io import (key_findings, quality_kpis, ratio_sentences, read_csv_safe, read_json_safe, size_labels,
+                        speedup_table, timings_status)
 from nightlife_map import render_nightlife_map
 
 RESULTS = Path(os.environ.get("RESULTS_DIR", "/results"))
@@ -83,13 +84,15 @@ with tab_city:
             y=alt.Y("trips:Q", title="Trips"),
             tooltip=["time", "trips"]), width="stretch", theme=None)
         b2.subheader("Average fare and tip by pickup hour")
-        long = hourly.melt(id_vars=["time"], value_vars=["avg_fare", "avg_tip"], var_name="measure",
-                           value_name="dollars")
-        b2.altair_chart(alt.Chart(long).mark_line(point=True).encode(
+        # One measure at a time: on a shared axis the tip (a few dollars) was squashed under the fare.
+        measure = b2.radio("Measure", ["avg_fare", "avg_tip"], horizontal=True, key="fare-tip-measure",
+                           format_func=lambda m: {"avg_fare": "Average fare", "avg_tip": "Average tip"}[m])
+        name = {"avg_fare": "Average fare (USD)", "avg_tip": "Average tip (USD)"}[measure]
+        b2.altair_chart(alt.Chart(hourly).mark_line(point=True, color=theme.COLORS[measure]).encode(
             x=alt.X("time:N", sort=order, title="Pickup hour", axis=alt.Axis(labelAngle=-45)),
-            y=alt.Y("dollars:Q", title="USD"),
-            color=alt.Color("measure:N", scale=theme.scale(long["measure"])),
-            tooltip=["time", "measure", "dollars"]), width="stretch", theme=None)
+            y=alt.Y(f"{measure}:Q", title=name, scale=alt.Scale(zero=False)),
+            tooltip=[alt.Tooltip("time:N", title="Pickup hour"),
+                     alt.Tooltip(f"{measure}:Q", title=name, format="$.2f")]), width="stretch", theme=None)
         c3, c4 = st.columns(2)
         if zones is not None:
             z = zones.copy()
@@ -120,11 +123,28 @@ with tab_data:
     with card("quality-summary"):
         if need(summ, p):
             st.subheader("Source rows, kept rows and excluded rows per month")
-            st.dataframe(summ, width="stretch", hide_index=True)
-            if (summ["unaccounted_rows"] != 0).any():
-                st.error("Some rows are unaccounted for: processed + excluded does not equal source.")
+            k = quality_kpis(summ)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Source rows (original files)", f"{k['source']:,}")
+            m2.metric("Kept: cleaned night trips", f"{k['kept']:,}")
+            m3.metric("Excluded rows", f"{k['excluded']:,}",
+                      help="Includes every trip outside the night window: excluded does not mean invalid.")
+            m4.metric("Unaccounted rows", f"{k['unaccounted']:,}")
+            if k["balanced"]:
+                st.caption(f"Totals over all months: {k['source']:,} source rows = {k['kept']:,} kept + "
+                           f"{k['excluded']:,} excluded.")
             else:
-                st.success("For every month: kept + excluded = source rows.")
+                st.caption(f"Totals over all months: {k['source']:,} source rows, {k['kept']:,} kept, "
+                           f"{k['excluded']:,} excluded, {k['unaccounted']:,} unaccounted.")
+            st.caption("Excluded rows include the daytime trips, so 'excluded' is not a synonym for 'invalid'; "
+                       "the reasons are in the table below.")
+            st.dataframe(summ, width="stretch", hide_index=True)
+            if k["balanced"]:
+                st.success("For every month: kept + excluded = source rows, and no row is unaccounted for.")
+            else:
+                st.error("Row accounting does not balance for month(s) " + ", ".join(k["bad_months"]) +
+                         ": kept + excluded differs from source rows, or some rows are unaccounted for. "
+                         "Check the table above.")
     with card("quality-exclusions"):
         if need(excl, p2):
             st.subheader("Excluded rows by reason and source month")
@@ -158,21 +178,44 @@ with tab_db:
             st.caption(f"{env.get('runs')} measured runs per query after {env.get('warmups')} warm-up runs; "
                        f"query order: {env.get('order')} (seed {env.get('seed')}). 'First' = first execution on a new "
                        f"connection (OS cache not flushed, so not a true cold start); 'warm' = after warm-up.")
+        lat_all, _ = read_csv_safe(RESULTS, "lookup_latency.csv")
+        ex_all, _ = read_csv_safe(RESULTS, "explain_q5.csv")
+        findings = key_findings(summary, lat_all, ex_all)
+        if findings:
+            with card("findings"):
+                st.subheader("Key findings of this run")
+                for col, f in zip(st.columns(len(findings)), findings):
+                    col.metric(f["title"], f["value"])
+                    col.caption(f["detail"])
+                st.caption("Descriptive results of THIS run on THIS machine: largest test size, warm medians. "
+                           "The two systems differ in architecture (client/server vs in-process) and possibly in "
+                           "parallelism, so these numbers do not say WHY one engine is faster; that analysis is "
+                           "still in progress.")
         with card("queries"):
             st.subheader("Analytical queries and the selective range query")
             phase = st.radio("Measurement", ["warm", "first"], horizontal=True,
                              format_func=lambda x: {"warm": "Warm (median, bars show min-max)",
                                                     "first": "First execution (single run)"}[x])
             q = st.selectbox("Query", ["Q1", "Q2", "Q3", "Q5"])
+            log_y = st.toggle("Logarithmic time axis (points instead of bars, so small DuckDB times stay visible)",
+                              value=False, key="log-timings")
             sub = summary[(summary["query"] == q) & (summary["phase"] == phase)
                           & summary["engine"].isin(["postgres", "duckdb"])]
+            if log_y:   # a log axis needs strictly positive values
+                sub = sub[(sub["median_s"] > 0) & (sub["min_s"] > 0)]
+            tips = [alt.Tooltip("engine_name:N", title="Engine"), alt.Tooltip("size:N", title="Test size"),
+                    alt.Tooltip("n:Q", title="Runs"), alt.Tooltip("median_s:Q", title="Median (s)", format=".4f"),
+                    alt.Tooltip("mean_s:Q", title="Mean (s)", format=".4f"),
+                    alt.Tooltip("stdev_s:Q", title="Std dev (s)", format=".4f")]
             base = alt.Chart(sub).encode(
                 x=alt.X("size:N", sort=size_order, title="Test size (actual rows)", axis=theme.size_axis()),
                 xOffset="engine_name:N",
                 color=alt.Color("engine_name:N", title="Engine", scale=theme.scale(sub["engine_name"])))
-            chart = base.mark_bar(**theme.BAR_V).encode(
-                y=alt.Y("median_s:Q", title="Seconds"),
-                tooltip=["engine_name", "size", "n", "median_s", "mean_s", "stdev_s"])
+            if log_y:
+                chart = base.mark_point(filled=True, size=110, opacity=1).encode(
+                    y=alt.Y("median_s:Q", title="Seconds (log scale)", scale=alt.Scale(type="log")), tooltip=tips)
+            else:
+                chart = base.mark_bar(**theme.BAR_V).encode(y=alt.Y("median_s:Q", title="Seconds"), tooltip=tips)
             if phase == "warm":
                 chart += base.mark_rule(strokeWidth=1.6).encode(y="min_s:Q", y2="max_s:Q", color=alt.value(theme.INK))
             st.altair_chart(chart, width="stretch", theme=None)
@@ -181,16 +224,39 @@ with tab_db:
                          .sort_values(["size", "engine_name", "phase"]), width="stretch", hide_index=True)
             for s in ratio_sentences(summary[summary["query"].isin(["Q1", "Q2", "Q3", "Q5"])], labels):
                 st.write("- " + s)
+            sp = speedup_table(summary, phase)
+            if not sp.empty:
+                sp["size"] = sp["months"].map(labels)
+                st.markdown(f"**Speed ratio = PostgreSQL time / DuckDB time** ({phase} medians, same query and size)")
+                points = alt.Chart(sp).mark_point(filled=True, size=120, opacity=1).encode(
+                    x=alt.X("size:N", sort=size_order, title="Test size (actual rows)", axis=theme.size_axis()),
+                    xOffset="query:N",
+                    y=alt.Y("ratio:Q", title="PostgreSQL / DuckDB (log scale)", scale=alt.Scale(type="log")),
+                    color=alt.Color("query:N", title="Query", scale=theme.scale(sp["query"])),
+                    tooltip=[alt.Tooltip("query:N", title="Query"), alt.Tooltip("size:N", title="Test size"),
+                             alt.Tooltip("postgres_s:Q", title="PostgreSQL (s)", format=".4f"),
+                             alt.Tooltip("duckdb_s:Q", title="DuckDB (s)", format=".4f"),
+                             alt.Tooltip("ratio:Q", title="Ratio", format=".2f"),
+                             alt.Tooltip("winner:N", title="Faster"),
+                             alt.Tooltip("factor:Q", title="Faster by (x)", format=".1f")])
+                parity = alt.Chart(pd.DataFrame({"y": [1.0]})).mark_rule(strokeDash=[5, 4], color=theme.MUTED).encode(
+                    y="y:Q")
+                st.altair_chart(points + parity, width="stretch", theme=None)
+                st.caption("Above the dashed line (ratio > 1) DuckDB was faster by that factor; below it "
+                           "PostgreSQL was faster. Only PostgreSQL without the extra index is compared. Q4 is not "
+                           "on this axis: it is a client-side lookup latency, shown separately below.")
             st.caption("Ratios describe THIS run on THIS machine. PostgreSQL is reached through a client/server "
                        "connection and DuckDB runs inside the benchmark process, so part of any difference is "
                        "architecture, not only storage layout.")
 
         with card("q4"):
-            st.subheader("Q4: 200 sequential point lookups (application-level latency)")
+            st.subheader("Q4: Sequential point lookups (application-level latency)")
             lat, pl = read_csv_safe(RESULTS, "lookup_latency.csv")
-            st.caption("This is the latency a Python client sees for 200 one-after-the-other lookups by trip_id. "
-                       "It includes Python call overhead and, for PostgreSQL, a network round trip per lookup. "
-                       "It is not a measure of pure engine processing time.")
+            st.caption("Each repetition runs a fixed series of one-after-the-other lookups by trip_id from a Python "
+                       "client (N_LOOKUPS in sql/queries.py). The `lookups` column is the POOLED number of per-lookup "
+                       "measurements for that engine, size and phase, i.e. lookups per repetition x repetitions; it is "
+                       "not the number of lookups in a single repetition. The latency includes Python call overhead "
+                       "and, for PostgreSQL, a network round trip per lookup: it is not pure engine processing time.")
             if need(lat, pl):
                 l2 = lat[lat["phase"] == "warm"].copy()
                 l2["engine_name"] = l2["engine"].map(LABEL)

@@ -111,3 +111,103 @@ def ratio_sentences(summary: pd.DataFrame, labels: dict) -> list[str]:
                        f"{float(pg.iloc[0]):.4f} s, DuckDB {float(dk.iloc[0]):.4f} s "
                        f"(ratio {float(pg.iloc[0]) / float(dk.iloc[0]):.1f}x)")
     return out
+
+
+# ------------------------------------------------------------ presentation helpers (pure, tested)
+ANALYTICAL = ["Q1", "Q2", "Q3", "Q5"]   # SQL query timings. Q4 (client-side lookups) is never mixed in.
+
+
+def speedup_table(summary: pd.DataFrame | None, phase: str = "warm") -> pd.DataFrame:
+    """Matched medians for the SAME (months, query, phase): PostgreSQL (no index) vs DuckDB only.
+
+    ratio  = PostgreSQL median seconds / DuckDB median seconds  (> 1: DuckDB faster, < 1: PostgreSQL faster)
+    factor = slower / faster, always >= 1, read together with `winner`.
+    Rows where one engine is missing or a median is not > 0 are skipped, never guessed.
+    """
+    cols = ["months", "query", "postgres_s", "duckdb_s", "ratio", "winner", "factor"]
+    if summary is None or summary.empty:
+        return pd.DataFrame(columns=cols)
+    s = summary[(summary["phase"] == phase) & summary["query"].isin(ANALYTICAL)
+                & summary["engine"].isin(["postgres", "duckdb"])]
+    if s.empty:
+        return pd.DataFrame(columns=cols)
+    wide = s.pivot_table(index=["months", "query"], columns="engine", values="median_s", aggfunc="first")
+    if "postgres" not in wide.columns or "duckdb" not in wide.columns:
+        return pd.DataFrame(columns=cols)
+    wide = wide.dropna(subset=["postgres", "duckdb"])
+    wide = wide[(wide["postgres"] > 0) & (wide["duckdb"] > 0)]
+    out = wide.reset_index().rename(columns={"postgres": "postgres_s", "duckdb": "duckdb_s"})
+    out.columns.name = None
+    out["months"] = out["months"].astype(int)
+    out["ratio"] = out["postgres_s"] / out["duckdb_s"]
+    out["winner"] = out["ratio"].map(lambda r: "DuckDB" if r > 1 else ("PostgreSQL" if r < 1 else "tie"))
+    out["factor"] = out[["postgres_s", "duckdb_s"]].max(axis=1) / out[["postgres_s", "duckdb_s"]].min(axis=1)
+    return out[cols].sort_values(["query", "months"]).reset_index(drop=True)
+
+
+def key_findings(summary: pd.DataFrame | None, lookup: pd.DataFrame | None = None,
+                 explain: pd.DataFrame | None = None) -> list[dict]:
+    """Up to three descriptive cards for the LARGEST test size, warm medians, built only from the files.
+
+    Call it only after timings_status() said the run is complete and equivalent.
+    Each card: {"title", "value", "detail"}. A card whose inputs are missing or unverified is omitted.
+    """
+    out: list[dict] = []
+    sp = speedup_table(summary, "warm")
+    if sp.empty:
+        return out
+    biggest = int(sp["months"].max())
+
+    # 1. analytical query with the largest observed gap (Q1-Q3)
+    a = sp[(sp["months"] == biggest) & sp["query"].isin(["Q1", "Q2", "Q3"])]
+    if not a.empty:
+        r = a.loc[a["factor"].idxmax()]
+        out.append({"title": f"Largest analytical gap ({r['query']}, {biggest} mo)",
+                    "value": f"{r['winner']} {r['factor']:.1f}x faster",
+                    "detail": f"Warm median: PostgreSQL {r['postgres_s']:.4f} s, DuckDB {r['duckdb_s']:.4f} s."})
+
+    # 2. Q4 point lookups: only shown when PostgreSQL is actually faster (a counterexample)
+    if lookup is not None and not lookup.empty:
+        lw = lookup[(lookup["phase"] == "warm") & (lookup["months"] == biggest)]
+        pg = lw[lw["engine"] == "postgres"]["median_ms"]
+        dk = lw[lw["engine"] == "duckdb"]["median_ms"]
+        if len(pg) and len(dk) and float(pg.iloc[0]) > 0 and float(dk.iloc[0]) > float(pg.iloc[0]):
+            n = int(lw["lookups"].iloc[0])
+            out.append({"title": f"Q4 point lookups ({biggest} mo)",
+                        "value": f"PostgreSQL {float(dk.iloc[0]) / float(pg.iloc[0]):.1f}x faster",
+                        "detail": f"Median per lookup: PostgreSQL {float(pg.iloc[0]):.3f} ms, DuckDB "
+                                  f"{float(dk.iloc[0]):.3f} ms, over {n:,} pooled per-lookup measurements "
+                                  f"(all warm repetitions together). Client-side latency, not an SQL query time."})
+
+    # 3. Q5 index effect: only when the recorded plan really used the index
+    if explain is not None and not explain.empty and summary is not None:
+        e = explain[(explain["months"] == biggest) & (explain["state"] == "with_index")]
+        used = len(e) > 0 and e["index_used"].astype(str).str.lower().eq("true").all()
+        q5 = summary[(summary["query"] == "Q5") & (summary["phase"] == "warm") & (summary["months"] == biggest)]
+        before = q5[q5["engine"] == "postgres"]["median_s"]
+        after = q5[q5["engine"] == "postgres_indexed"]["median_s"]
+        if used and len(before) and len(after) and float(before.iloc[0]) > 0 and float(after.iloc[0]) > 0:
+            b, f = float(before.iloc[0]), float(after.iloc[0])
+            word = "faster" if f < b else "slower"
+            out.append({"title": f"Q5 with index on pickup_ts ({biggest} mo)",
+                        "value": f"{max(b, f) / min(b, f):.1f}x {word}",
+                        "detail": f"PostgreSQL warm median {b:.4f} s without, {f:.4f} s with the index "
+                                  f"(plan used the index)."})
+    return out
+
+
+def quality_kpis(summ: pd.DataFrame | None) -> dict | None:
+    """Totals over all months of data_quality/preprocess_summary.csv.
+
+    `balanced` is True only when EVERY month satisfies source = kept + excluded AND has no unaccounted
+    rows. Checking the grand totals alone is not enough: two bad months can cancel each other out.
+    `bad_months` lists the source_month values that fail (empty when balanced)."""
+    if summ is None or summ.empty:
+        return None
+    k = {"source": int(summ["source_rows"].sum()), "kept": int(summ["night_clean_rows"].sum()),
+         "excluded": int(summ["excluded_rows"].sum()), "unaccounted": int(summ["unaccounted_rows"].sum())}
+    ok = (summ["source_rows"] == summ["night_clean_rows"] + summ["excluded_rows"]) & (summ["unaccounted_rows"] == 0)
+    months = summ["source_month"] if "source_month" in summ.columns else pd.Series(range(len(summ)))
+    k["bad_months"] = [str(m) for m in months[~ok]]
+    k["balanced"] = bool(ok.all())
+    return k
