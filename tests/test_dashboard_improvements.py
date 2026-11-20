@@ -50,6 +50,7 @@ def test_key_findings_use_largest_size_and_verified_inputs():
                                                       "Q5 with index on pickup_ts"]
     assert "2 mo" in f[0]["title"] and "30.0x" in f[0]["value"]
     assert "4.0x" in f[1]["value"] and "ms" in f[1]["detail"] and "not an SQL query time" in f[1]["detail"]
+    assert "200 pooled per-lookup measurements" in f[1]["detail"]       # pooled count, not "200 lookups per run"
     not_used = pd.DataFrame([{"months": 2, "state": "with_index", "index_used": False}])
     assert len(rio.key_findings(s, lookup, not_used)) == 2                    # no index claim without the plan
     slow_pg = lookup.assign(median_ms=[0.9, 0.3])
@@ -66,6 +67,28 @@ def test_quality_kpis_sum_months_and_keep_identity():
     bad = summ.assign(excluded_rows=[60, 180], unaccounted_rows=[10, 0])
     assert not rio.quality_kpis(bad)["balanced"]
     assert rio.quality_kpis(None) is None
+
+
+def test_quality_identity_wrong_but_unaccounted_zero_fails():
+    summ = pd.DataFrame({"source_month": ["2026-04"], "source_rows": [100], "night_clean_rows": [30],
+                         "excluded_rows": [60], "unaccounted_rows": [0]})          # 30 + 60 != 100
+    k = rio.quality_kpis(summ)
+    assert not k["balanced"] and k["bad_months"] == ["2026-04"]
+
+
+def test_quality_opposite_errors_do_not_cancel_across_months():
+    summ = pd.DataFrame({"source_month": ["2026-04", "2026-05"], "source_rows": [100, 100],
+                         "night_clean_rows": [30, 30], "excluded_rows": [80, 60], "unaccounted_rows": [0, 0]})
+    k = rio.quality_kpis(summ)                                  # totals: 200 = 60 + 140, but each month fails
+    assert k["source"] == k["kept"] + k["excluded"]
+    assert not k["balanced"] and k["bad_months"] == ["2026-04", "2026-05"]
+
+
+def test_quality_valid_months_balance():
+    summ = pd.DataFrame({"source_month": ["2026-04", "2026-05"], "source_rows": [100, 50],
+                         "night_clean_rows": [40, 20], "excluded_rows": [60, 30], "unaccounted_rows": [0, 0]})
+    k = rio.quality_kpis(summ)
+    assert k["balanced"] and k["bad_months"] == []
 
 
 def test_map_ranking_shows_volume_without_changing_order():
@@ -109,6 +132,30 @@ def test_dashboard_shows_findings_and_kpis_for_a_valid_run(tmp_path):
     assert "Key findings of this run" in [h.value for h in at.subheader]
     labels = [m.label for m in at.metric]
     assert "Source rows (original files)" in labels and "Excluded rows" in labels
+
+
+def test_dashboard_quality_success_and_error(tmp_path):
+    write_complete_run(tmp_path)
+    at = run_app(tmp_path)
+    assert not at.exception and any("For every month" in x.value for x in at.success)
+    (tmp_path / "data_quality" / "preprocess_summary.csv").write_text(        # identity wrong, unaccounted = 0
+        "source_month,source_rows,night_clean_rows,excluded_rows,unaccounted_rows\n"
+        "2026-04,100,30,80,0\n2026-05,100,30,60,0\n")
+    at = run_app(tmp_path)
+    assert not at.exception
+    assert not any("For every month" in x.value for x in at.success)
+    assert any("does not balance" in x.value and "2026-04" in x.value for x in at.error)
+
+
+def test_q4_heading_is_neutral(tmp_path):
+    write_complete_run(tmp_path)
+    (tmp_path / "lookup_latency.csv").write_text(
+        "engine,months,phase,lookups,mean_ms,median_ms,p95_ms,p99_ms,max_ms\n"
+        "postgres,1,warm,1000,0.2,0.2,0.3,0.4,0.5\nduckdb,1,warm,1000,0.6,0.6,0.7,0.8,0.9\n")
+    at = run_app(tmp_path)
+    heads = [h.value for h in at.subheader]
+    assert not at.exception and "Q4: Sequential point lookups (application-level latency)" in heads
+    assert not any("200 sequential" in h for h in heads)
 
 
 def test_dashboard_hides_findings_when_run_invalid(tmp_path):

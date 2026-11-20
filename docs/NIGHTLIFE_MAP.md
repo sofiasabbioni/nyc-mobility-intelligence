@@ -7,9 +7,12 @@ called from `app/dashboard.py` with `render_nightlife_map(RESULTS)`.
 ## What the map shows
 
 - A choropleth of the official TLC taxi zones, coloured by one measure:
-  - **Nightlife score** = late departures / late arrivals (pickups / drop-offs between 00:00 and 04:59).
-    Above 1 people leave the zone late at night more than they arrive (going-out zone);
-    below 1 they arrive and stay (residential zone). Diverging colour scale centred on 1.
+  - **Nightlife score** = late departures / late arrivals, i.e. yellow-taxi pickups / drop-offs in the zone
+    between 00:00 and 04:59, for the selected night type. Above 1 means more late yellow-taxi pickups than
+    drop-offs were observed; below 1 the reverse. Diverging colour scale centred on 1.
+    The score is a **mobility asymmetry proxy**: it is not proof of nightlife, land use, demographics or
+    residential character. Other causes can move it (transport hubs, work shifts and commuting patterns,
+    where taxis are available to be hailed), so it must be read together with the absolute trip volumes.
   - **Late departures per night**, **evening arrivals per night**, **late arrivals per night**.
 - Filters: night type (weekend / weekday / all), colour measure, boroughs.
 - A **top-10 table** for the selected measure. When ranking by the score, the table also shows late departures
@@ -71,8 +74,10 @@ The `app` service now also mounts `./data/raw:/data/raw:ro` and sets `DATA_DIR: 
 ## First results (weekend nights, score ranking)
 
 Greenwich Village South (3.12), Brooklyn Navy Yard (2.92), Williamsburg North Side (2.44),
-West Village (2.43), Lower East Side (2.39), Meatpacking/West Village West (2.28), East Village (1.97).
-Residential areas such as the Upper East Side stay below 1.
+West Village (2.43), Lower East Side (2.39), Meatpacking/West Village West (2.28), East Village (1.97):
+in these zones more late yellow-taxi pickups than drop-offs were recorded. Zones such as the Upper East Side
+show the opposite asymmetry (score below 1). These are observed taxi patterns, not a classification of
+neighbourhoods.
 
 ## Limits
 

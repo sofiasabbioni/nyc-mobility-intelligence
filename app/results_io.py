@@ -172,12 +172,12 @@ def key_findings(summary: pd.DataFrame | None, lookup: pd.DataFrame | None = Non
         pg = lw[lw["engine"] == "postgres"]["median_ms"]
         dk = lw[lw["engine"] == "duckdb"]["median_ms"]
         if len(pg) and len(dk) and float(pg.iloc[0]) > 0 and float(dk.iloc[0]) > float(pg.iloc[0]):
-            n = lw["lookups"].iloc[0]
+            n = int(lw["lookups"].iloc[0])
             out.append({"title": f"Q4 point lookups ({biggest} mo)",
                         "value": f"PostgreSQL {float(dk.iloc[0]) / float(pg.iloc[0]):.1f}x faster",
                         "detail": f"Median per lookup: PostgreSQL {float(pg.iloc[0]):.3f} ms, DuckDB "
-                                  f"{float(dk.iloc[0]):.3f} ms ({n} sequential client-side lookups, "
-                                  f"not an SQL query time)."})
+                                  f"{float(dk.iloc[0]):.3f} ms, over {n:,} pooled per-lookup measurements "
+                                  f"(all warm repetitions together). Client-side latency, not an SQL query time."})
 
     # 3. Q5 index effect: only when the recorded plan really used the index
     if explain is not None and not explain.empty and summary is not None:
@@ -198,10 +198,16 @@ def key_findings(summary: pd.DataFrame | None, lookup: pd.DataFrame | None = Non
 
 def quality_kpis(summ: pd.DataFrame | None) -> dict | None:
     """Totals over all months of data_quality/preprocess_summary.csv.
-    `balanced` is True when source = kept + excluded and nothing is unaccounted."""
+
+    `balanced` is True only when EVERY month satisfies source = kept + excluded AND has no unaccounted
+    rows. Checking the grand totals alone is not enough: two bad months can cancel each other out.
+    `bad_months` lists the source_month values that fail (empty when balanced)."""
     if summ is None or summ.empty:
         return None
     k = {"source": int(summ["source_rows"].sum()), "kept": int(summ["night_clean_rows"].sum()),
          "excluded": int(summ["excluded_rows"].sum()), "unaccounted": int(summ["unaccounted_rows"].sum())}
-    k["balanced"] = k["unaccounted"] == 0 and k["source"] == k["kept"] + k["excluded"]
+    ok = (summ["source_rows"] == summ["night_clean_rows"] + summ["excluded_rows"]) & (summ["unaccounted_rows"] == 0)
+    months = summ["source_month"] if "source_month" in summ.columns else pd.Series(range(len(summ)))
+    k["bad_months"] = [str(m) for m in months[~ok]]
+    k["balanced"] = bool(ok.all())
     return k

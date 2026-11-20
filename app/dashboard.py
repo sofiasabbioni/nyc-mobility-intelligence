@@ -130,15 +130,21 @@ with tab_data:
             m3.metric("Excluded rows", f"{k['excluded']:,}",
                       help="Includes every trip outside the night window: excluded does not mean invalid.")
             m4.metric("Unaccounted rows", f"{k['unaccounted']:,}")
-            st.caption(f"Totals over all months: {k['source']:,} source rows = {k['kept']:,} kept + "
-                       f"{k['excluded']:,} excluded" + ("." if k["unaccounted"] == 0 else
-                       f" + {k['unaccounted']:,} unaccounted.") + " Excluded rows include the daytime trips, "
-                       "so 'excluded' is not a synonym for 'invalid'; the reasons are in the table below.")
-            st.dataframe(summ, width="stretch", hide_index=True)
-            if (summ["unaccounted_rows"] != 0).any():
-                st.error("Some rows are unaccounted for: processed + excluded does not equal source.")
+            if k["balanced"]:
+                st.caption(f"Totals over all months: {k['source']:,} source rows = {k['kept']:,} kept + "
+                           f"{k['excluded']:,} excluded.")
             else:
-                st.success("For every month: kept + excluded = source rows.")
+                st.caption(f"Totals over all months: {k['source']:,} source rows, {k['kept']:,} kept, "
+                           f"{k['excluded']:,} excluded, {k['unaccounted']:,} unaccounted.")
+            st.caption("Excluded rows include the daytime trips, so 'excluded' is not a synonym for 'invalid'; "
+                       "the reasons are in the table below.")
+            st.dataframe(summ, width="stretch", hide_index=True)
+            if k["balanced"]:
+                st.success("For every month: kept + excluded = source rows, and no row is unaccounted for.")
+            else:
+                st.error("Row accounting does not balance for month(s) " + ", ".join(k["bad_months"]) +
+                         ": kept + excluded differs from source rows, or some rows are unaccounted for. "
+                         "Check the table above.")
     with card("quality-exclusions"):
         if need(excl, p2):
             st.subheader("Excluded rows by reason and source month")
@@ -244,11 +250,13 @@ with tab_db:
                        "architecture, not only storage layout.")
 
         with card("q4"):
-            st.subheader("Q4: 200 sequential point lookups (application-level latency)")
+            st.subheader("Q4: Sequential point lookups (application-level latency)")
             lat, pl = read_csv_safe(RESULTS, "lookup_latency.csv")
-            st.caption("This is the latency a Python client sees for 200 one-after-the-other lookups by trip_id. "
-                       "It includes Python call overhead and, for PostgreSQL, a network round trip per lookup. "
-                       "It is not a measure of pure engine processing time.")
+            st.caption("Each repetition runs a fixed series of one-after-the-other lookups by trip_id from a Python "
+                       "client (N_LOOKUPS in sql/queries.py). The `lookups` column is the POOLED number of per-lookup "
+                       "measurements for that engine, size and phase, i.e. lookups per repetition x repetitions; it is "
+                       "not the number of lookups in a single repetition. The latency includes Python call overhead "
+                       "and, for PostgreSQL, a network round trip per lookup: it is not pure engine processing time.")
             if need(lat, pl):
                 l2 = lat[lat["phase"] == "warm"].copy()
                 l2["engine_name"] = l2["engine"].map(LABEL)
