@@ -313,8 +313,26 @@ def connect_postgres(months: int, variant: dict) -> Executor:
                            user=e("POSTGRES_USER", "postgres"), password=e("POSTGRES_PASSWORD", "postgres"),
                            dbname=e("POSTGRES_DB", "taxi"), autocommit=True,
                            options="-c default_transaction_read_only=on")
-    ex = Executor("postgres", months, variant["variant"], lambda s: conn.execute(s).fetchall(), conn.close)
-    prepare_postgres(ex, months, variant)
+        def postgres_raw_run(sql):
+        cursor = conn.execute(sql)
+        if cursor.description is None:
+            return []
+        return cursor.fetchall()
+
+    ex = Executor(
+        "postgres",
+        months,
+        variant["variant"],
+        postgres_raw_run,
+        conn.close,
+    )
+
+    try:
+        prepare_postgres(ex, months, variant)
+    except Exception:
+        conn.close()
+        raise
+
     return ex
 
 
