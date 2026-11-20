@@ -309,11 +309,17 @@ def connect_postgres(months: int, variant: dict) -> Executor:
     import psycopg  # only for real runs
 
     e = os.environ.get
-    conn = psycopg.connect(host=e("POSTGRES_HOST", "db"), port=e("POSTGRES_PORT", "5432"),
-                           user=e("POSTGRES_USER", "postgres"), password=e("POSTGRES_PASSWORD", "postgres"),
-                           dbname=e("POSTGRES_DB", "taxi"), autocommit=True,
-                           options="-c default_transaction_read_only=on")
-        def postgres_raw_run(sql):
+    conn = psycopg.connect(
+        host=e("POSTGRES_HOST", "db"),
+        port=e("POSTGRES_PORT", "5432"),
+        user=e("POSTGRES_USER", "postgres"),
+        password=e("POSTGRES_PASSWORD", "postgres"),
+        dbname=e("POSTGRES_DB", "taxi"),
+        autocommit=True,
+        options="-c default_transaction_read_only=on",
+    )
+
+    def postgres_raw_run(sql):
         cursor = conn.execute(sql)
         if cursor.description is None:
             return []
@@ -333,7 +339,7 @@ def connect_postgres(months: int, variant: dict) -> Executor:
         conn.close()
         raise
 
-    return ex 
+    return ex
 
 
 def prepare_postgres(ex: Executor, months: int, variant: dict) -> None:
