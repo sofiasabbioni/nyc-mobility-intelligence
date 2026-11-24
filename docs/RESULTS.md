@@ -15,7 +15,7 @@ The baseline uses NYC TLC yellow taxi data from April–July 2026 and a cleaning
 | 4 months | 6,658,475 | 100.00% |
 
 The original `run_status.json` reports `state: complete`, 18 equivalence checks, and 36 consistency checks. Its data fingerprint is `1c08d359491acd5c4940d03049fdd16d1c27e1d5843dbb507af687cd8f3cd8cd`.
-The supplied ZIP does not include the individual `equivalence.csv`, `db_consistency.csv`, or `data_quality` files; use those if a row-level audit or an original-source-row count is required.
+The local project ZIP examined on 24 November **does** contain `results/equivalence.csv`, `results/db_consistency.csv`, and `results/data_quality/`. These generated files are excluded by `.gitignore` and are therefore **not** included when someone clones only the GitHub repository. A new user must rerun the pipeline or obtain the original results separately. The four raw months contained **15,289,433** source records; 6,658,475 were retained and 8,630,958 excluded, with zero unaccounted rows and all 41 data-quality checks passing.
 
 ## 2. Original benchmark: query timing
 
@@ -54,7 +54,17 @@ Do not merge Q4's client-side times into an analytical-query average.
 
 Loading was measured **once per engine and size**, so it is descriptive, not a statistically robust estimate. PostgreSQL uses Python/CSV serialization and `COPY`; DuckDB reads Parquet natively. These are *pipeline* comparisons, not pure storage-engine measures. Database size includes the PostgreSQL heap and indexes versus DuckDB's checkpointed file; raw Parquet is a different comparison basis.
 
-The supplied results do **not** include `memory_summary.csv`; no validated peak-memory figure is reported here.
+### Sampled container memory (original benchmark)
+
+`results/memory_summary.csv` is present in the local project ZIP and its values can be cross-referenced against `results/memory.csv` and the sampling windows in `results/phases.csv`.
+
+| Dataset size | PostgreSQL `db` container peak (MiB) | DuckDB `benchmark` container peak (MiB) | PostgreSQL samples | DuckDB samples |
+|---|---:|---:|---:|---:|
+| 1 month | 459 | 117 | 12 | 4 |
+| 2 months | 896 | 271 | 23 | 4 |
+| 4 months | 1,631 | 409 | 41 | 5 |
+
+These are **whole-container sampled maxima**, not the peak RAM of the isolated database engines. PostgreSQL is a separate server container; DuckDB executes inside the benchmark/Python process. The sampling frequency may miss brief peaks, especially with 4–5 DuckDB samples per phase. The existing `peak_mem_mb` header is a legacy label: the implementation normalizes bytes by 1024², so the figures above are **MiB**. Container-memory ratios should not be interpreted as proof of engine-level memory efficiency.
 
 ## 4. PostgreSQL Q5 index experiment
 
@@ -97,15 +107,15 @@ The supplemental timings also tested PostgreSQL's limits of zero and up to two e
 - PostgreSQL is a networked client/server database; DuckDB executes inside the benchmarking Python process. The findings compare **configured systems**, not just storage formats.
 - “First” is the first query execution on a connection, **not** a clean-cache measurement. The OS page cache is not flushed.
 - Original warm times come from five executions in one benchmark run. Supplemental values use three independent sessions; they cannot be pooled directly.
-- Loading times have a single observation per engine/size, and no validated peak-memory value was included in the uploaded originals.
+- Loading times have a single observation per engine/size. Sampled whole-container memory evidence is available in the local project ZIP, but it does not support a controlled engine-memory-efficiency comparison.
 - PostgreSQL's Q1 group misestimation is associated with the observed plan, but is **not causally isolated** from JIT, executor, disk, or cache effects.
-- SQL correctness and row counts are verified by the project's own checks; report evidence from `run_status.json`, the equivalence files, the manifest, and plan artifacts. Full `data_quality/` and individual original equivalence CSVs were not included in Sofia's uploaded ZIP.
+- SQL correctness and row counts are verified by the project's own checks; the local 24 November ZIP contains `run_status.json`, the original equivalence and consistency CSVs, `data_quality/`, the manifest, and plan artifacts. These generated results are not tracked in GitHub and are not independently reproduced by a clone without running the pipeline.
 - Reproduction on another machine should compare data counts and query outputs for equality, but timings must be reported per machine rather than merged.
 
 ## 7. Result provenance
 
-**Original 15 November benchmark:** `results/benchmark_summary.csv`, `load_times.csv`, `disk_sizes.csv`, `lookup_latency.csv`, `explain_q5.csv`, `datasets.csv`, `run_status.json` (Sofia's supplied result archive).
+**Original 15 November benchmark:** locally generated `results/benchmark_summary.csv`, `results/load_times.csv`, `results/disk_sizes.csv`, `results/lookup_latency.csv`, `results/explain_q5.csv`, `results/datasets.csv`, `results/run_status.json`, plus `results/memory_summary.csv`, `results/memory.csv`, `results/phases.csv`, `results/equivalence.csv`, `results/db_consistency.csv`, and `results/data_quality/`. The tracked repository contains the summary tables but not these generated files.
 
 **20 November supplemental study:** `Marin_Q1_4m_Plans.zip`, `Marin_Q1_4m_Timings.zip`, `Marin_Q2Q3_4m_Plans.zip`, `Marin_Q2Q3_4m_Timings.zip`; the corresponding output folders contain `plan_summary.csv`, `rigor_session_medians.csv`, `rigor_equivalence.csv`, and `protocol.json`.
 
-Further implementation/protocol details: `docs/METHODOLOGY.md` and `docs/BENCHMARK_RIGOR.md`. The machine used for the official result should be recorded in `docs/MACHINE.md`, using the real computer specifications and original `results/environment.txt` rather than assumptions.
+Further implementation/protocol details: `docs/METHODOLOGY.md` and `docs/BENCHMARK_RIGOR.md`. The machine used for the reported experiment is documented in `docs/MACHINE.md`; recorded original-run settings can be checked against locally generated `results/environment.txt`, rather than inferred from later system inspection.

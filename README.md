@@ -42,7 +42,7 @@ Test sizes are 1, 2 and 4 consecutive months, labelled with their **actual row c
 6. **Findings.** Observed results from the completed 15 November benchmark are summarized below; details and the separate 20 November validation are in `docs/RESULTS.md`.
 
 ## Experimental results — original benchmark (15 November 2026)
-Largest test: **4 months, 6,658,475 cleaned nighttime trips**. Times are the median of 5 measured warm repetitions (after 2 warmups). Both databases used the same cleaned data and canonical SQL. The run status was `complete` and recorded 18 equivalence and 36 consistency checks. These source files do not include the full per-check details.
+Largest test: **4 months, 6,658,475 cleaned nighttime trips**. Times are the median of 5 measured warm repetitions (after 2 warmups). Both databases used the same cleaned data and canonical SQL. The run status was `complete` and recorded 18 equivalence and 36 consistency checks. Individual checks are available in the locally generated `results/equivalence.csv` and `results/db_consistency.csv`, but `results/` is not committed to Git.
 
 | Workload (4 months) | PostgreSQL | DuckDB | Observation |
 |---|---:|---:|---|
@@ -65,9 +65,21 @@ DuckDB loaded the data **7.09× faster** in this single loading run, and Postgre
 
 **Supplementary validation (20 November):** a separate three-session study for Q1–Q3 confirmed a large DuckDB advantage under the tested configurations. PostgreSQL's Q1 group-count estimate was greatly inflated (2,503,684 estimated vs 12 actual groups); Q2 and Q3 estimates were accurate and launched two workers. These observations do **not** establish that the Q1 estimation error caused the entire performance gap. See [`docs/RESULTS.md`](docs/RESULTS.md) and [`docs/BENCHMARK_RIGOR.md`](docs/BENCHMARK_RIGOR.md) for methods and caveats.
 
-Peak memory is **not available in the uploaded result set**; do not fill it without `memory_summary.csv` and matching phase evidence. The total original source-row count likewise requires `results/data_quality/preprocess_summary.csv` or `raw_files.csv`.
+### Growth and sampled container memory (original 15 November run)
 
-Machine: [`docs/MACHINE.md`](docs/MACHINE.md). Recorded settings: `results/environment.txt` (generated locally and not included in this source archive).
+The three tested sizes contain 1,628,153 (24.45%), 3,390,368 (50.92%) and 6,658,475 (100%) cleaned nighttime trips, respectively. The four raw months contained **15,289,433** original records; **8,630,958** were excluded under the documented rules. All **41** data-quality validation checks passed, with zero unaccounted source rows.
+
+| Size | PostgreSQL load (s) | DuckDB load (s) | PostgreSQL disk (decimal MB) | DuckDB disk (decimal MB) | PostgreSQL container peak (MiB) | DuckDB benchmark container peak (MiB) |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 month (24.45%) | 26.563 | 4.454 | 201.47 | 54.01 | 459 | 117 |
+| 2 months (50.92%) | 42.749 | 5.916 | 419.43 | 97.27 | 896 | 271 |
+| 4 months (100%) | 85.580 | 12.068 | 823.91 | 197.14 | 1,631 | 409 |
+
+**Memory interpretation:** These are the *maximum sampled memory values of entire containers* during the recorded benchmark phases, not isolated database-engine RAM measurements. PostgreSQL uses the `db` container; DuckDB is measured inside the `benchmark` container, including Python. The sampler recorded 12/23/41 PostgreSQL and 4/4/5 DuckDB samples at the respective sizes, so short-lived peaks may have been missed. The CSV column `peak_mem_mb` is historically named, but the stored numbers are **MiB** (the conversion divides bytes by 1024²). **Do not interpret their ratio as a controlled memory-efficiency comparison.** Load times represent one observation per size, not three independent loading runs.
+
+Evidence: locally generated `results/load_times.csv`, `results/disk_sizes.csv`, `results/memory_summary.csv`, `results/memory.csv`, `results/phases.csv`, and `results/data_quality/`. These are present in the local project ZIP examined on 24 November, but the repository intentionally excludes `results/` through `.gitignore`. The tables above preserve the key figures in tracked documentation.
+
+Machine: [`docs/MACHINE.md`](docs/MACHINE.md). The original run settings are in locally generated `results/environment.txt` (not committed to Git).
 
 ## Honest limits
 PostgreSQL is a server reached over a connection, DuckDB runs inside the benchmark process; default PostgreSQL settings; one machine;
