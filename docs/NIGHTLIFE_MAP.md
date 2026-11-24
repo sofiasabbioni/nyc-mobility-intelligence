@@ -88,3 +88,27 @@ neighbourhoods.
 - A ratio can be high with few trips: Brooklyn Navy Yard is second with only 837 late departures and
   287 late arrivals. The 100-event threshold is an analysis choice; a higher threshold would remove it.
 - Taxi zones are areas, not exact pickup points.
+
+## 3D view (map view selector)
+
+Above the map, **Map view** switches between **2D map** (default, unchanged) and **3D map** (PyDeck / deck.gl,
+`app/nightlife_3d.py`, called from `render_nightlife_map`).
+
+- Same rows as the 2D map: the weekday/weekend/all, colour-measure and borough filters, the airport / unknown /
+  low-volume exclusions and the 100-event rule are applied once, before either view is drawn.
+- Each taxi zone is an extruded polygon. **Height = the selected measure** (nightlife score, late departures,
+  evening arrivals or late arrivals per night). It is NOT building height.
+- Colour uses the same scale as the 2D map (`colour_scale` in `nightlife_map.py`: RdBu_r for the score,
+  Viridis otherwise, domain 0 to the 95th percentile of the zones shown). Height uses the same domain, so a zone
+  above that maximum is drawn at the maximum height; its exact value is in the tooltip.
+  Maximum extrusion is `MAX_HEIGHT_M` (6000 m, deliberately exaggerated).
+- Zones not drawn in 2D (airports, unknown, low-volume, filtered-out boroughs) appear flat and grey, only as a
+  geographic backdrop. They carry no value.
+- Tooltip: zone, borough, selected value, evening arrivals / late departures / late arrivals per night (same
+  rounding as the 2D tooltip).
+- Interaction: drag = pan, scroll = zoom, right-drag or Ctrl-drag = rotate and tilt. Initial camera: pitch 55 deg,
+  bearing -29 deg (aligns Manhattan's street grid vertically).
+- Performance: the zone polygons are simplified (about 20 m) and rounded to about 1 m for the 3D view only, and
+  cached. The 2D map keeps the full geometry.
+- Needs `pydeck` (pinned in `app/requirements.txt`). If it is missing, a message is shown and 2D still works.
+- The base map tiles (Carto) are loaded by the browser, so the 3D map needs internet access like the 2D map.

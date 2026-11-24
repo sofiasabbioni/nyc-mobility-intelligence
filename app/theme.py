@@ -197,7 +197,20 @@ h3 {{ font-size:1.1rem !important; padding:0 0 .25rem !important; }}
 [data-testid="stMetric"]::before {{ content:""; position:absolute; left:1.2rem; top:50%; transform:translateY(-50%); width:3.1rem; height:3.1rem; border-radius:50%; background:#e9e6ff url("{_MOON}") center/1.6rem no-repeat; }}
 [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] > div, [data-testid="stMetricLabel"] p {{ white-space:normal !important; overflow:visible !important; text-overflow:clip !important; }}
 [data-testid="stMetricLabel"] p {{ color:var(--muted); font-size:.86rem; font-weight:500; }}
-[data-testid="stMetricValue"] {{ color:var(--ink); font-weight:800; letter-spacing:-.02em; font-size:2rem; }}
+/* KPI values must never be cut ("15,289,..."). The card is a size container: the value scales with the
+   card width (never above 2rem, as before) and wraps at spaces only, so long words such as "PostgreSQL 2.9x faster"
+   use two lines instead of an ellipsis. Numbers contain no spaces and stay whole. */
+[data-testid="stMetric"] {{ container-type:inline-size; min-width:0; }}
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] > div {{ color:var(--ink); font-weight:800; letter-spacing:-.02em; font-size:clamp(1.1rem, 15cqw, 2rem) !important; line-height:1.15 !important; }}
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] > div, [data-testid="stMetricValue"] p {{ white-space:normal !important; overflow:visible !important; text-overflow:clip !important; overflow-wrap:break-word; }}
+[data-testid="stMetricValue"] p {{ font-size:inherit !important; line-height:inherit !important; margin:0; }}
+@media (max-width:1500px) {{
+  [data-testid="stMetric"] {{ padding-left:4.1rem; padding-right:.9rem; }}
+  [data-testid="stMetric"]::before {{ left:.9rem; width:2.4rem; height:2.4rem; background-size:1.3rem; }}
+}}
+/* Key findings: the three cards share one height whatever the wrapping of title and value. */
+.st-key-card-findings [data-testid="stMetric"] {{ min-height:9.4rem; }}
+.st-key-card-quality-summary [data-testid="stMetric"] {{ min-height:6.4rem; }}
 
 /* status messages */
 [data-testid="stAlertContainer"] {{ border-radius:14px !important; border:0 !important; padding:.35rem .5rem; }}

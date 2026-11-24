@@ -1,3 +1,16 @@
+# Changelog: final UI improvements (readability + 3D nightlife map)
+
+- **KPI truncation fixed** (`app/theme.py`, CSS only): metric values are no longer ellipsised ("15,289,..." ->
+  "15,289,433"). The card is a CSS size container; the value scales with the card width (never above the previous
+  2rem) and wraps at spaces. Affects the four Data quality KPIs, the three Key findings cards and the other metrics.
+  Key findings cards share one height. No value, rounding rule or calculation changed.
+- **3D nightlife map** (`app/nightlife_3d.py`, `app/nightlife_map.py`): new "Map view" selector (2D default / 3D).
+  The 2D figure is unchanged (shared `colour_scale` helper returns exactly the values it used inline).
+  `pydeck==0.9.3` added to `app/requirements.txt`; `app/Dockerfile` copies the new module.
+- Tests: `tests/test_nightlife_3d.py` (15 new).
+
+---
+
 # Changelog: version 2 (audit corrections) against the first delivered project
 
 Format: audit item -> what changed -> file and functions. "New" = new file; "rewritten" = new design, same purpose.

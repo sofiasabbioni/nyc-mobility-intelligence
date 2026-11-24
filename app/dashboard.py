@@ -187,10 +187,13 @@ with tab_db:
                 for col, f in zip(st.columns(len(findings)), findings):
                     col.metric(f["title"], f["value"])
                     col.caption(f["detail"])
-                st.caption("Descriptive results of THIS run on THIS machine: largest test size, warm medians. "
-                           "The two systems differ in architecture (client/server vs in-process) and possibly in "
-                           "parallelism, so these numbers do not say WHY one engine is faster; that analysis is "
-                           "still in progress.")
+        st.caption(
+            "Descriptive results of THIS run on THIS machine: largest test size, warm medians. "
+            "The two systems differ in architecture (client/server vs in-process) and possibly in "
+            "parallelism, so these timings alone do not establish why one engine is faster. "
+            "The completed supplementary Q1-Q3 query-plan and parallelism study is documented "
+            "in docs/RESULTS.md."
+)
         with card("queries"):
             st.subheader("Analytical queries and the selective range query")
             phase = st.radio("Measurement", ["warm", "first"], horizontal=True,
