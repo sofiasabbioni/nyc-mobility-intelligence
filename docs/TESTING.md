@@ -1,3 +1,10 @@
+# Tests performed, actual results, and what is NOT verified
+
+This document distinguishes the original synthetic-data testing from the subsequent real-data experiments and final integration checks.
+
+Sections 1–4 preserve the original automated testing audit conducted in a Linux cloud container (Python 3.13, pyarrow 26.0.1, DuckDB 2.0.0, psycopg 3.3.8, Streamlit 1.67.0, PostgreSQL 16.15).
+
+Those original tests used synthetic data and were not intended to establish real-world performance. Subsequent real-data experiments and final Docker/GitHub verification are documented separately below.
 
 ## Current integrated-project verification (24 November 2026)
 
@@ -13,7 +20,8 @@ The following checks were completed after the original synthetic-data audit.
 | Dashboard | Successfully built and launched through Docker Desktop on Windows/WSL2 | Existing real-data outputs |
 | Nightlife visualization | 2D and 3D maps rendered successfully | Real taxi-zone geometry and nightlife metrics |
 | 3D map tests | 15/15 passed in a temporary Docker container using Python 3.12 | `tests/test_nightlife_3d.py` |
-| GitHub Actions | Python unit-test and PostgreSQL integration-test jobs passed on PR #16 | Integrated dashboard changes |
+| GitHub Actions | Python unit-test and PostgreSQL integration-test jobs passed on PRs #16 and #17 | Integrated dashboard changes and final documentation audit |
+| Local final test suite | **167 passed, 5 skipped, 0 failed**, using Python 3.12 in a temporary virtual environment | 24 November 2026; skipped tests are not counted as passed |
 | Dashboard readability | KPI values and benchmark headline cards visually verified | Browser inspection |
 
 The original benchmark and supplemental experimental findings are reported separately in `docs/RESULTS.md` and `docs/BENCHMARK_RIGOR.md`.
@@ -27,14 +35,6 @@ The original benchmark and supplemental experimental findings are reported separ
 - Passing automated tests does not by itself establish the scientific validity of performance interpretations.
 
 The checks above must not be confused with the original synthetic-data test counts recorded in Section 1.
-
-# Tests performed, actual results, and what is NOT verified
-
-This document distinguishes the original synthetic-data testing from the subsequent real-data experiments and final integration checks.
-
-Sections 1–4 preserve the original automated testing audit conducted in a Linux cloud container (Python 3.13, pyarrow 26.0.1, DuckDB 2.0.0, psycopg 3.3.8, Streamlit 1.67.0, PostgreSQL 16.15).
-
-Those original tests used synthetic data and were not intended to establish real-world performance. Subsequent real-data experiments and final Docker/GitHub verification are documented separately below.
 
 ## 1. Automated test suite (`python -m pytest tests -q`)
 | Run | Result |
