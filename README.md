@@ -80,7 +80,7 @@ Details and what the results can and cannot support: `docs/METHODOLOGY.md` secti
 | `loader/` | `download_data.py`, `preprocess.py`, `build_full_dataset.py`, `load_postgres.py`, `load_duckdb.py`, `city_results.py`, `run_loader.py`, `common.py` (imported by the others) |
 | `sql/` | `schema.sql`, `queries.py`, `night.py` (the night window), `equivalence.py`, `stats.py` |
 | `benchmark/` | `benchmark.py`, `rigor_study.py` |
-| `app/` | `dashboard.py`, `results_io.py`, `nightlife_map.py` |
+| `app/` | `dashboard.py`, `results_io.py`, `nightlife_map.py`, `nightlife_3d.py` |
 | `scripts/` | `sample_docker_stats.py`, `summarize_memory.py` (run on the host) |
 | `tests/` | automated tests (`python -m pytest tests -q`) |
 | `CHANGELOG.md` (root), `docs/` | `METHODOLOGY.md`, `RESULTS.md`, `BENCHMARK_RIGOR.md`, `REPRODUCIBILITY.md`, `EXCLUSION_RULES.md`, `WINDOWS_GUIDE.md`, `TESTING.md`, `architecture.md`, `MACHINE.md` |

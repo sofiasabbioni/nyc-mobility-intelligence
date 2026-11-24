@@ -46,6 +46,14 @@ def filter_map_rows(data: pd.DataFrame, metric: str) -> pd.DataFrame:
     return result[result[metric].notna()]
 
 
+def colour_scale(metric: str, data: pd.DataFrame) -> tuple[str, float]:
+    """(Plotly colourscale name, colour maximum) shared by the 2D and 3D maps. The domain is 0..max,
+    the maximum being the 95th percentile of the zones shown (at least 2 for the score, 1 otherwise)."""
+    if metric == "nightlife_score":
+        return "RdBu_r", max(2, float(data[metric].quantile(.95)))
+    return "Viridis", max(1, float(data[metric].quantile(.95)))
+
+
 VOLUME_COLUMNS = {"avg_late_departures": "Late departures / night", "avg_late_arrivals": "Late arrivals / night"}
 
 
@@ -88,6 +96,29 @@ def read_shapes(zip_name: str):
         by="LocationID"
     ).reset_index()
     return geo.__geo_interface__
+
+
+@st.cache_data(show_spinner=False)
+def read_shapes_3d(zip_name: str):
+    """Lighter copy of the zone geometry for the browser (3D view only; the 2D map is untouched)."""
+    from nightlife_3d import simplify_shapes
+    return simplify_shapes(read_shapes(zip_name))
+
+
+def render_3d(zip_name: str, data: pd.DataFrame, metric: str, metric_label: str,
+              colorscale: str, zmax: float) -> None:
+    """Extruded taxi zones: same rows, filters and colour scale as the 2D map; height = the measure."""
+    try:
+        import nightlife_3d as n3
+        zones, context = n3.build_layers_data(read_shapes_3d(zip_name), data, metric, metric_label,
+                                              colorscale, zmax)
+        deck = n3.build_deck(zones, context)
+    except ImportError:
+        st.warning("The 3D map needs the 'pydeck' package (listed in app/requirements.txt). "
+                   "Rebuild the app image, or use the 2D map.")
+        return
+    st.pydeck_chart(deck, width="stretch", height=590)
+    st.markdown(n3.LEGEND_CSS + n3.legend_html(colorscale, zmax, metric_label), unsafe_allow_html=True)
 
 
 def render_nightlife_map(results_dir):
@@ -134,43 +165,46 @@ def render_nightlife_map(results_dir):
     "Zones that do not meet this threshold are omitted from the "
     "score map and ranking.")   
     
+    view = st.radio("Map view", ["2D map", "3D map"], horizontal=True, key="nightlife-map-view",
+                    help="Same zones, filters and values. 3D: height shows the selected measure.")
     shapes_path = Path(os.getenv("DATA_DIR", "data/raw")) / "taxi_zones.zip"
     if shapes_path.exists():
         try:
             shapes = read_shapes(str(shapes_path))
-            fig = go.Figure(go.Choroplethmap(
-                geojson=shapes,
-                featureidkey="properties.LocationID",
-                locations=data["zone_id"].astype(int),
-                z=data[metric],
-                customdata=data[[
-                    "zone", "borough", "avg_evening_arrivals",
-                    "avg_late_departures", "avg_late_arrivals"
-                ]].to_numpy(),
-                colorscale="RdBu_r" if metric == "nightlife_score"
-                else "Viridis",
-                zmid=1 if metric == "nightlife_score" else None,
-                zmin=0,
-                zmax=(max(2, float(data[metric].quantile(.95)))
-                      if metric == "nightlife_score"
-                      else max(1, float(data[metric].quantile(.95)))),
-                marker_line_width=0.3,
-                hovertemplate=(
-                    "<b>%{customdata[0]}</b> (%{customdata[1]})<br>"
-                    "Selected value: %{z:.2f}<br>"
-                    "Evening arrivals/night: %{customdata[2]:.1f}<br>"
-                    "Late departures/night: %{customdata[3]:.1f}<br>"
-                    "Late arrivals/night: %{customdata[4]:.1f}"
-                    "<extra></extra>"
-                ),
-            ))
-            fig.update_layout(
-                map_style="carto-positron",
-                map_center={"lat": 40.73, "lon": -73.94},
-                map_zoom=9.5, height=590,
-                margin=dict(l=0, r=0, t=0, b=0),
-            )
-            st.plotly_chart(fig, width="stretch")
+            colorscale, zmax = colour_scale(metric, data)
+            if view == "3D map":
+                render_3d(str(shapes_path), data, metric, metric_label, colorscale, zmax)
+            else:
+                fig = go.Figure(go.Choroplethmap(
+                    geojson=shapes,
+                    featureidkey="properties.LocationID",
+                    locations=data["zone_id"].astype(int),
+                    z=data[metric],
+                    customdata=data[[
+                        "zone", "borough", "avg_evening_arrivals",
+                        "avg_late_departures", "avg_late_arrivals"
+                    ]].to_numpy(),
+                    colorscale=colorscale,
+                    zmid=1 if metric == "nightlife_score" else None,
+                    zmin=0,
+                    zmax=zmax,
+                    marker_line_width=0.3,
+                    hovertemplate=(
+                        "<b>%{customdata[0]}</b> (%{customdata[1]})<br>"
+                        "Selected value: %{z:.2f}<br>"
+                        "Evening arrivals/night: %{customdata[2]:.1f}<br>"
+                        "Late departures/night: %{customdata[3]:.1f}<br>"
+                        "Late arrivals/night: %{customdata[4]:.1f}"
+                        "<extra></extra>"
+                    ),
+                ))
+                fig.update_layout(
+                    map_style="carto-positron",
+                    map_center={"lat": 40.73, "lon": -73.94},
+                    map_zoom=9.5, height=590,
+                    margin=dict(l=0, r=0, t=0, b=0),
+                )
+                st.plotly_chart(fig, width="stretch")
         except Exception as exc:
             st.warning(f"Map geometry failed, but tables are available: {exc}")
     else:
