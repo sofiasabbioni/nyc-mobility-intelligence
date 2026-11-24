@@ -1,8 +1,40 @@
+
+## Current integrated-project verification (24 November 2026)
+
+The following checks were completed after the original synthetic-data audit.
+
+| Component | Verified result | Scope |
+|---|---|---|
+| Real NYC taxi data | 15,289,433 original records; 6,658,475 cleaned nighttime trips | April–July 2026 |
+| Data quality | 41/41 validation checks passed; zero unaccounted rows | Real four-month dataset |
+| Original benchmark | Completed with 18 equivalence and 36 consistency checks recorded | Real-data PostgreSQL/DuckDB experiment |
+| Supplemental benchmark | Q1–Q3 four-month execution-plan and repeated-timing experiments completed | Three independent timing sessions per configuration |
+| Supplemental result equivalence | 45/45 recorded comparisons passed | Q1: 15; Q2/Q3: 30 |
+| Dashboard | Successfully built and launched through Docker Desktop on Windows/WSL2 | Existing real-data outputs |
+| Nightlife visualization | 2D and 3D maps rendered successfully | Real taxi-zone geometry and nightlife metrics |
+| 3D map tests | 15/15 passed in a temporary Docker container using Python 3.12 | `tests/test_nightlife_3d.py` |
+| GitHub Actions | Python unit-test and PostgreSQL integration-test jobs passed on PR #16 | Integrated dashboard changes |
+| Dashboard readability | KPI values and benchmark headline cards visually verified | Browser inspection |
+
+The original benchmark and supplemental experimental findings are reported separately in `docs/RESULTS.md` and `docs/BENCHMARK_RIGOR.md`.
+
+### Remaining limitations
+
+- A complete independent reproduction from a fresh checkout on a second machine has not been confirmed.
+- Exact performance timings are machine- and configuration-dependent.
+- Cold operating-system cache conditions were not established.
+- Peak-memory measurement methodology has not been independently validated.
+- Passing automated tests does not by itself establish the scientific validity of performance interpretations.
+
+The checks above must not be confused with the original synthetic-data test counts recorded in Section 1.
+
 # Tests performed, actual results, and what is NOT verified
 
-Everything below was executed in a Linux cloud container (Python 3.13, pyarrow 26.0.1, DuckDB 2.0.0, psycopg 3.3.8,
-Streamlit 1.67.0, a local **PostgreSQL 16.15** server, not the `postgres:16` Docker image). Data were **synthetic** (generated with random
-values plus hand-made bad rows). **No real TLC data, no real benchmark measurements and no performance conclusions** come from these runs.
+This document distinguishes the original synthetic-data testing from the subsequent real-data experiments and final integration checks.
+
+Sections 1–4 preserve the original automated testing audit conducted in a Linux cloud container (Python 3.13, pyarrow 26.0.1, DuckDB 2.0.0, psycopg 3.3.8, Streamlit 1.67.0, PostgreSQL 16.15).
+
+Those original tests used synthetic data and were not intended to establish real-world performance. Subsequent real-data experiments and final Docker/GitHub verification are documented separately below.
 
 ## 1. Automated test suite (`python -m pytest tests -q`)
 | Run | Result |
@@ -38,7 +70,9 @@ itself (comparing tables containing NaN, and a settings combination the code cor
 
 These runs prove that the **pipeline works and its checks fire**, not how the engines perform on real data. Synthetic timings are not reported and must not be quoted.
 
-## 3. NOT verified (you must do or confirm these on your machine)
+## 3. Limitations of the original synthetic-data audit (historical)
+The following list records what was not verified during the original Linux-cloud synthetic-data audit. Several items were subsequently verified on the real-data Windows/WSL2 setup, as documented in the current verification section above. This list is retained to preserve the scope of the original audit.
+
 1. **Docker build and `docker compose up`**: no Docker daemon was available. Images, healthcheck timing, the dependency chain at runtime, the bind mount `data\raw` and the named volume together on Windows/WSL2 are untested.
 2. **Real TLC files**: not reachable from the test environment. Untested: real column types and NULL patterns, the real number of excluded rows per reason, real file sizes and timings, the combined dataset on real files with columns that appear in some months only (e.g. fees added in later years).
 3. **Scale**: the largest test had 781,796 clean rows (about 1.6 million source rows). Memory, time and disk at the real size (millions of rows) are untested.
@@ -50,7 +84,7 @@ These runs prove that the **pipeline works and its checks fire**, not how the en
 9. **True cold-cache behaviour** is not tested or claimed (see METHODOLOGY section 5).
 10. **Run-to-run and seed variability** on real data: unknown until you repeat the benchmark with another `BENCH_SEED`.
 
-## 4. How to reproduce the test runs
+## 4. How to reproduce the original synthetic test runs
 ```
 python -m venv .venv ; .\.venv\Scripts\Activate.ps1       # PowerShell
 pip install -r requirements-dev.txt
