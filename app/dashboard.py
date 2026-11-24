@@ -310,7 +310,7 @@ with tab_db:
         disk, pd_ = read_csv_safe(RESULTS, "disk_sizes.csv")
         if need(disk, pd_):
             d = disk[disk["what"].isin(["postgres", "postgres_indexed", "duckdb", "parquet_clean", "parquet_raw"])].copy()
-            d["MB"] = d["bytes"] / 1024**2
+            d["MiB"] = d["bytes"] / 1024**2
             lbl = size_labels(datasets, d["months"].unique())
             d["size"] = d["months"].map(lbl)
             d["what"] = d["what"].replace({"postgres": "PostgreSQL (tables+PK)", "postgres_indexed": "PostgreSQL + index",
@@ -321,9 +321,9 @@ with tab_db:
             st.altair_chart(alt.Chart(d).mark_bar(**theme.BAR_V).encode(
                 x=alt.X("size:N", sort=[lbl[m] for m in sorted(lbl)], title="Test size (actual rows)",
                         axis=theme.size_axis()),
-                y=alt.Y("MB:Q", title="MB"),
+                y=alt.Y("MiB:Q", title="MiB"),
                 color=alt.Color("what:N", title="", scale=theme.scale(d["what"])), xOffset="what:N",
-                tooltip=["what", "size", "MB"]), width="stretch", theme=None)
+                tooltip=["what", "size", "MiB"]), width="stretch", theme=None)
 
     with card("memory"):
         st.subheader("Peak memory (whole container, from docker stats)")

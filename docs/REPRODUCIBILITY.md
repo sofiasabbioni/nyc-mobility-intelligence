@@ -8,7 +8,13 @@ It describes expected behavior; it does not claim that Docker was run on your PC
 
 The default run uses four consecutive TLC yellow taxi months, April through July 2026, and the zone lookup. The loader downloads a missing raw file, but uses an existing file as-is and does not replace or modify it. The Compose loader also enables the optional official `taxi_zones.zip` download into `data/raw`; the app reads that ZIP on demand. The loader requirements pin `pandas==3.1.1`, matching the app's pin. It cleans the night-trip subset (pickup 18:00 to before 06:00, New York time), checks the data, and loads PostgreSQL and DuckDB. The optional complete dataset is off by default.
 
-These configuration and dependency checks do not establish end-to-end nightlife results: the loader integration that produces `results/nightlife/zone_metrics.csv`, `hourly.csv`, and `validation.json` is maintained separately and must be integrated before a fresh full-pipeline run can verify that output contract.
+
+The nightlife metrics exporter is integrated into the automated pipeline. `loader/run_loader.py` invokes `nightlife_metrics.main([])` after preprocessing, producing the zone-level, hourly, and validation outputs in `results/nightlife/`.
+
+The real-data nightlife outputs have been generated and successfully displayed in the Streamlit dashboard on the original project machine. This confirms that the integrated workflow has worked in that environment.
+
+However, successful execution on the original machine and passing automated tests do not establish independent reproducibility. A complete fresh-machine reproduction has not yet been independently verified.
+
 
 The clean-data manifest fingerprints the relevant settings and raw-file contents. Clean files can be reused when those inputs are unchanged; the PostgreSQL and DuckDB databases are rebuilt on every loader run. `load_times.csv` is removed at loader startup, and the benchmark runs again. Keep copies of any results you need to retain before a later run.
 

@@ -127,7 +127,10 @@ def render_nightlife_map(results_dir):
     metrics_file = data_folder / "zone_metrics.csv"
     hourly_file = data_folder / "hourly.csv"
     if not metrics_file.exists() or not hourly_file.exists():
-        st.info("Nightlife CSVs missing. Ask Benedetta for the results ZIP.")
+        st.info(
+            "Nightlife data are missing. Run the loader pipeline to generate "
+            "results/nightlife/zone_metrics.csv and hourly.csv, then refresh the dashboard."
+                )
         return
     try:
         metrics, hourly = read_results(str(metrics_file), str(hourly_file))

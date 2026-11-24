@@ -129,17 +129,78 @@ exits with an error, as in the main benchmark.
 - No `CREATE STATISTICS` or other planner-statistics change is made. A statistics variant would need an isolated copy
   of the database and separate approval.
 
+
 ## (e) Measured findings
 
-**NOT YET MEASURED.** The study has not been run on real data.
+**Status: Completed for the four-month dataset on 20 November 2026.**
 
-| Query | Size | PostgreSQL warm median | DuckDB warm median | Variant (threads / workers) | Actual PG workers | Plan file | Sessions x runs |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Q1 | 1, 2, 4 months | not yet measured | not yet measured | | | | |
-| Q2 | 1, 2, 4 months | not yet measured | not yet measured | | | | |
-| Q3 | 1, 2, 4 months | not yet measured | not yet measured | | | | |
+The supplementary benchmark was executed on the real NYC taxi dataset containing 6,658,475 cleaned nighttime trips.
 
-When filled in, every number must come from a file in the study's output folder.
+The study investigated Q1, Q2 and Q3 through query-plan analysis and repeated timing experiments.
+
+The reported timings are the median of three independent session medians. Each session used two warm-up executions and five measured warm executions per configuration.
+
+These results are separate from the original benchmark performed on 15 November 2026.
+
+### Repeated timing results — Four months
+
+| Query | PostgreSQL default (ms) | DuckDB default (ms) | DuckDB speedup |
+|---|---:|---:|---:|
+| Q1 | 4,327.25 | 43.36 | 99.8x |
+| Q2 | 1,349.55 | 105.04 | 12.8x |
+| Q3 | 1,415.58 | 31.91 | 44.4x |
+
+All 45 recorded equivalence comparisons passed: 15 for Q1 and 30 for Q2/Q3.
+
+### PostgreSQL execution-plan findings
+
+| Query | Estimated groups | Actual groups | Workers launched |
+|---|---:|---:|---:|
+| Q1 | 2,503,684 | 12 | 0 (no parallel plan) |
+| Q2 | 265 | 261 | 2 |
+| Q3 | 8 | 8 | 2 |
+
+PostgreSQL substantially overestimated the aggregation cardinality for Q1, while its estimates for Q2 and Q3 were accurate.
+
+PostgreSQL launched two parallel workers for Q2 and Q3 but did not use parallel workers for Q1.
+
+These observations indicate query-specific differences in planner behavior.
+
+However, the study did not experimentally correct PostgreSQL's Q1 cardinality estimate. Consequently, the measured results do not establish how much of Q1's slowdown was caused by the estimation error.
+
+### Controlled parallelism
+
+The experiments also investigated:
+- PostgreSQL with zero additional workers.
+- PostgreSQL with up to two additional workers.
+- DuckDB with one thread.
+- DuckDB with three threads.
+- Both engines under their default configurations.
+
+DuckDB maintained a substantial advantage across the tested Q1-Q3 configurations.
+
+Configured thread and worker limits do not necessarily imply equal actual CPU utilization.
+
+### Scope and limitations
+
+- These supplementary results cover the four-month dataset only. The complete supplementary study was not run at one and two months.
+- PostgreSQL operates as a client/server database, whereas DuckDB runs inside the benchmarking process.
+- The first execution on a connection does not guarantee a cold operating-system cache.
+- Three independent sessions were collected; the observed speedups are not universal performance guarantees.
+- DuckDB exhibited between-session timing variability, particularly for Q2.
+- JIT and planner-statistics interventions were not conducted.
+- Q4 and Q5 remain outside the scope of this supplementary study.
+
+### Evidence
+
+The corresponding result directories contain the recorded execution plans, timing summaries, equivalence checks and experimental protocols.
+
+- `results/marin_q1_4m_plans_20261120/`
+- `results/marin_q1_4m_timings_20261120/`
+- `results/marin_q2q3_4m_plans_20261120/`
+- `results/marin_q2q3_4m_timings_20261120/`
+
+See `docs/RESULTS.md` for the comparison with the original benchmark and additional interpretation.
 
 ### How to word the results
 
@@ -167,13 +228,15 @@ numbers.
 - Peak memory is not measured by this tool (see `scripts/sample_docker_stats.py`, another workstream).
 - Q4 (application-level lookup latency) and Q5 (index experiment) are separate workloads and not part of this study.
 
-**Next steps, each needing approval.**
+**Study completion and possible future work.**
 
-1. Run stage A on the original benchmark machine and fill in section (e).
-2. Run stages B and C, and report medians with the between-session range.
-3. Only if the Q1 hypothesis is confirmed: a planner-statistics variant (`CREATE STATISTICS` on the hour expression)
-   on an **isolated** copy of the database, never on the shared schemas.
-4. Optional later: a BRIN vs B-tree study for Q5, also on an isolated copy.
+The four-month Q1-Q3 execution-plan and repeated-timing studies have been completed and are reported in section (e).
 
-**Related but separate:** `docs/LOADER_EVALUATION.md` is Marin's earlier Parquet **read** microbenchmark (full read vs
-`iter_batches`). It is not a database benchmark and its files are not changed here.
+The following extensions were not performed:
+
+1. Repeat the supplementary experiments at one- and two-month dataset sizes.
+2. Investigate PostgreSQL's Q1 planner-statistics behavior using an isolated database.
+3. Measure the effect of enabling or disabling PostgreSQL JIT.
+4. Investigate alternative PostgreSQL index structures for Q5.
+
+Any experiment that modifies database statistics or indexes must use an isolated database and must not overwrite the original benchmark evidence.
