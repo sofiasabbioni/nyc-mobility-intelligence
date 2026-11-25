@@ -1,3 +1,9 @@
+# NYC-MOBILITY-INTELLIGENCE
+
+![NYC Nightlife Maps](nyc_nightlife_maps_readme.png)
+
+*Late-night taxi departure-to-arrival patterns across NYC TLC zones, visualized in 2D and 3D.*
+
 # Night taxis in New York: PostgreSQL vs DuckDB
 
 Course project *Computational Infrastructures for Data Science*. One command starts a Dockerized system that loads
