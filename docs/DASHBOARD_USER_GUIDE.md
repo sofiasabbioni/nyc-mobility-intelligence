@@ -1,4 +1,4 @@
-# Dashboard user guide (Matteo)
+# Dashboard user guide
 
 ## Goal
 
