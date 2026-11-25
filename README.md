@@ -99,3 +99,54 @@ Details and what the results can and cannot support: `docs/METHODOLOGY.md` secti
 | `data/raw`, `data/full`, `results/` | your original files, optional combined dataset, all outputs |
 
 GitHub (course requirement): commit history from all members is a team task; `.gitignore` already excludes data, results and `.env`.
+
+
+## Independent reproduction on macOS
+
+On 24 November 2026, a second team member independently reproduced the full project on an Apple Silicon Mac using Docker Desktop.
+
+### Environment
+
+| Component | Specification |
+|---|---|
+| Processor | Apple M4, 10 cores |
+| Physical RAM | 16 GB |
+| Operating system | macOS 27.0.1 |
+| Docker Desktop | 4.94.0 |
+| Docker resources | 10 CPUs, approximately 7.75 GiB RAM |
+| Tested Git commit | `fcc76c5` |
+| Configuration | Default `.env` |
+
+### Reproduction procedure and results
+
+The tester cloned the `sofia/nightlife-map-integration` branch and removed volumes from an earlier experiment, ensuring that the test started with empty Docker storage.
+
+The complete Docker Compose pipeline successfully downloaded the original April–July 2026 NYC TLC data, preprocessed the records, loaded PostgreSQL and DuckDB, generated nightlife metrics, and executed the benchmark.
+
+Both the loader and benchmark containers exited with code 0.
+
+| Validation check | Result |
+|---|---|
+| Original records | 15,289,433 |
+| Cleaned nighttime trips | 6,658,475 |
+| Data-quality checks | 41/41 passed |
+| Query-equivalence checks | 18/18 passed |
+| Database-consistency checks | 36/36 passed |
+| Benchmark status | Complete |
+| Dashboard | All three tabs working |
+| Geographic visualization | 2D and 3D maps working |
+| Map filters and tooltips | Working |
+
+The reproduced data fingerprint was identical to the original Windows experiment:
+
+`1c08d359491acd5c4940d03049fdd16d1c27e1d5843dbb507af687cd8f3cd8cd`
+
+### Limitations
+
+The independent Mac execution provides evidence of cross-platform reproducibility but does not imply identical performance across hardware configurations.
+
+Mac and Windows benchmark timings must be reported separately.
+
+Memory sampling on the Mac was incomplete. DuckDB's two- and four-month phases produced no memory samples, and PostgreSQL had only 2–7 samples per dataset size. Missing samples must not be interpreted as zero memory consumption.
+
+The tester also observed an unmapped `null` category in the borough chart. Q4 is presented separately from the analytical-query dropdown by design.
