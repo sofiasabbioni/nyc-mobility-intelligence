@@ -3,9 +3,9 @@
 Author: Marin Tomasović · Branch: `feature/marin-benchmark-rigor` · Tool: `benchmark/rigor_study.py` ·
 Tests: `tests/test_benchmark_rigor.py`
 
-**Status: the study tool is built and tested on fake and synthetic data. The study itself has NOT been run on
-the real databases yet.** Every statement about causes below is a hypothesis until that run is done, with
-Sofia's approval, on the machine of the original benchmark.
+
+**Status: Completed.** The supplementary Q1-Q3 study was executed on the real four-month dataset on 20 November 2026. Execution plans, repeated timings, equivalence checks and limitations are documented in section (e). The study was conducted separately from the original benchmark of 15 November 2026.
+
 
 This is a supplement to `benchmark/benchmark.py`. It does not change `benchmark.py`, the SQL in
 `sql/queries.py`, the equivalence gate, Q4, Q5 or any existing result file.
