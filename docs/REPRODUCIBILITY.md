@@ -13,8 +13,8 @@ The nightlife metrics exporter is integrated into the automated pipeline. `loade
 
 The real-data nightlife outputs have been generated and successfully displayed in the Streamlit dashboard on the original project machine. This confirms that the integrated workflow has worked in that environment.
 
-However, successful execution on the original machine and passing automated tests do not establish independent reproducibility. A complete fresh-machine reproduction has not yet been independently verified.
 
+Independent reproduction was subsequently confirmed on 24 November 2026 on an Apple M4 Mac, using a fresh repository clone, default configuration and empty Docker storage. The full pipeline completed successfully, and the resulting dataset fingerprint matched the original Windows experiment. All three dashboard tabs and the 2D/3D maps were reported as working. This establishes independent cross-platform reproducibility for the tested configuration, not identical timing or memory performance across machines.
 
 The clean-data manifest fingerprints the relevant settings and raw-file contents. Clean files can be reused when those inputs are unchanged; the PostgreSQL and DuckDB databases are rebuilt on every loader run. `load_times.csv` is removed at loader startup, and the benchmark runs again. Keep copies of any results you need to retain before a later run.
 

@@ -27,8 +27,9 @@ The following checks were completed after the original synthetic-data audit.
 The original benchmark and supplemental experimental findings are reported separately in `docs/RESULTS.md` and `docs/BENCHMARK_RIGOR.md`.
 
 ### Remaining limitations
-
-- A complete independent reproduction from a fresh checkout on a second machine has not been confirmed.
+- An independent reproduction was successfully completed on an Apple M4 Mac on
+  24 November 2026, using a fresh clone and empty Docker storage. The loader,
+  benchmark, data validation and dashboard worked.
 - Exact performance timings are machine- and configuration-dependent.
 - Cold operating-system cache conditions were not established.
 - Peak-memory measurement methodology has not been independently validated.
