@@ -1,0 +1,4 @@
+pytest
+pyyaml
+-r loader/requirements.txt
+-r app/requirements.txt
